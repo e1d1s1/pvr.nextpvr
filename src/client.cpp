@@ -35,6 +35,7 @@ std::string      g_szHostname             = DEFAULT_HOST;                  ///< 
 std::string      g_szPin                  = DEFAULT_HOST;                  ///< The Host name or IP of the NextPVR server
 int              g_iPort                  = DEFAULT_PORT;                  ///< The web listening port (default: 8866)
 int16_t          g_timeShiftBufferSeconds = 0;
+std::string      g_szMAC_WOL              = "";                            ///< If using WOL, the MAC address of the machine to wake
 
 /* Client member variables */
 ADDON_STATUS           m_CurStatus    = ADDON_STATUS_UNKNOWN;

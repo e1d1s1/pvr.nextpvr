@@ -1937,18 +1937,96 @@ int cPVRClientNextPVR::DoRequest(const char *resource, std::string &response)
 {
   P8PLATFORM::CLockObject lock(m_mutex);
   LOG_API_CALL(__FUNCTION__);
+  
+  // send magic packet if WOL is enabled
+	// overkill, would be nice to ping and test similar to kodi WakeOnAccess.h
+	if (!g_szMAC_WOL.empty())
+		XBMC->WakeOnLan(g_szMAC_WOL.c_str());
 
   // build request string, adding SID if requred
-  std::string strURL;
+  std::string strQry;
   if (strstr(resource, "method=session") == NULL)
-    strURL = StringUtils::Format("http://%s:%d%s&sid=%s", g_szHostname.c_str(), g_iPort, resource, m_sid);
+    strQry = StringUtils::Format("GET /%s&sid=%s", resource, m_sid);
   else
-    strURL = StringUtils::Format("http://%s:%d%s", g_szHostname.c_str(), g_iPort, resource);
+    strQry = StringUtils::Format("GET /%s", resource);
   
 #if DEBUGGING_API
   XBMC->Log(LOG_ERROR, "%s: %s", __FUNCTION__, strURL.c_str());
 #endif
 
+	int resultCode = HTTP_NOTFOUND;
+	if (m_tcpclient->create())
+  {
+    if (m_tcpclient->connect(g_szHostname, g_iPort))
+    {
+      m_tcpclient->send(strQry.c_str(), strQry.length());
+
+			char line[256];
+      sprintf(line, "Connection: close\r\n");
+      m_tcpclient->send(line, strlen(line));
+
+      sprintf(line, "\r\n");
+      m_tcpclient->send(line, strlen(line));
+
+      char buf[1024];
+			string strCode;
+			bool gotCode = false;
+			int cnt = 0;
+      int read = m_tcpclient->receive(buf, sizeof buf, 0);
+      if (read > 0)
+      {
+				// HTTP response header
+				for (int i=0; i<read; i++)
+				{
+					if (buf[i] == '\r' && buf[i+1] == '\n')
+					{
+						if (buf[i+2] == '\r' && buf[i+3] == '\n')
+						{
+							break;
+						}
+						cnt++;
+					}
+					else if (cnt == 0)
+					{
+						if (isspace(buf[i]))
+						{
+							gotCode = !gotCode;
+						}
+						else if (gotCode)
+						{
+							strCode += buf[i];
+						}
+					}
+				}
+				
+				if (!strCode.empty())
+				{
+					resultCode = std::stoi(strCode);
+				}
+
+				// rest of body
+				bool connected = true;
+				while (connected)
+				{
+					char buf[1024];
+					int read = m_tcpclient->receive(buf, sizeof buf, 0);
+
+					if (read <= 0)
+					{
+						connected = false;
+					}
+					else if (read > 0)
+					{
+						response += buf;
+					}
+				}
+      }
+    }
+    m_tcpclient->close();
+	}
+	
+	/* Below code behaves badly on suspend/resume (server not yet responding)
+	 * Also does not support WOL
   // ask XBMC to read the URL for us
   int resultCode = HTTP_NOTFOUND;
   void* fileHandle = XBMC->OpenFile(strURL.c_str(), 0);
@@ -1965,6 +2043,7 @@ int cPVRClientNextPVR::DoRequest(const char *resource, std::string &response)
       resultCode = HTTP_BADREQUEST;
     }
   }
+	*/
   LOG_API_IRET(__FUNCTION__, resultCode);
   return resultCode;
 }

@@ -50,6 +50,7 @@ extern std::string      g_szPin;
 extern bool             g_bRadioEnabled;
 extern bool             g_bUseTimeshift;
 extern int16_t          g_timeShiftBufferSeconds;
+extern std::string      g_szMAC_WOL;
 
 extern ADDON::CHelper_libXBMC_addon *XBMC;
 extern CHelper_libXBMC_pvr          *PVR;
